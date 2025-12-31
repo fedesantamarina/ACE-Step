@@ -1393,13 +1393,22 @@ class ACEStepPipeline:
                 output_path_wav = save_path
 
         target_wav = target_wav.float()
-        backend = "soundfile"
-        if format == "ogg":
-            backend = "sox"
-        logger.info(f"Saving audio to {output_path_wav} using backend {backend}")
-        torchaudio.save(
-            output_path_wav, target_wav, sample_rate=sample_rate, format=format, backend=backend
-        )
+        logger.info(f"Saving audio to {output_path_wav}")
+        # Use soundfile directly to avoid torchaudio backend issues
+        try:
+            import soundfile as sf
+            audio_numpy = target_wav.cpu().numpy()
+            if audio_numpy.ndim == 2:
+                audio_numpy = audio_numpy.T  # soundfile expects (samples, channels)
+            sf.write(output_path_wav, audio_numpy, sample_rate, format=format.upper())
+        except Exception as e:
+            logger.warning(f"soundfile failed: {e}, falling back to torchaudio")
+            backend = "soundfile"
+            if format == "ogg":
+                backend = "sox"
+            torchaudio.save(
+                output_path_wav, target_wav, sample_rate=sample_rate, format=format, backend=backend
+            )
         return output_path_wav
 
     @cpu_offload("music_dcae")
